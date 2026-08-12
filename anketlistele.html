@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Admin - Anket Sonuçları</title>
+    <link rel="icon" id="siteFavicon" href="3N.png">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body class="bg-light">
+    <div class="container mt-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Müşteri Anket Sonuçları</h2>
+            <div class="d-flex gap-2">
+                <input type="date" id="dateFilter" class="form-control" onchange="filterByDate()"
+                    title="Güne göre filtrele">
+                <button class="btn btn-info text-white" onclick="clearFilter()">Tümünü Gör</button>
+                <button class="btn btn-danger" onclick="deleteAllSessions()">Temizle</button>
+                <a href="admin.html" class="btn btn-secondary">Sorular</a>
+            </div>
+        </div>
+        <div id="resultsContainer">
+            <div class="text-center text-muted mt-5">Veriler çekiliyor...</div>
+        </div>
+    </div>
+    <script>
+        // API URL'si PHP dosyasına yönlendirildi
+        const API_URL = "admin_api.php?action=results";
+
+        window.onload = () => {
+            loadLogo();
+            loadResults("");
+        };
+
+        async function loadLogo() {
+            try {
+                // Logo çekme işlemi güncellendi
+                const res = await fetch("admin_api.php?action=get_logo");
+                const data = await res.json();
+                if (data && data.logo_url) {
+                    document.getElementById("siteFavicon").href = data.logo_url;
+                }
+            } catch (e) {
+                console.error("Logo yükleme hatası:", e);
+            }
+        }
+
+        function filterByDate() {
+            const selectedDate = document.getElementById("dateFilter").value;
+            loadResults(selectedDate);
+        }
+
+        function clearFilter() {
+            document.getElementById("dateFilter").value = "";
+            loadResults("");
+        }
+
+        async function loadResults(filterDate) {
+            let fetchUrl = API_URL;
+            if (filterDate !== "") fetchUrl += `&date=${filterDate}`;
+
+            const res = await fetch(fetchUrl);
+            const data = await res.json();
+            const container = document.getElementById("resultsContainer");
+            container.innerHTML = "";
+
+            if (Object.keys(data).length === 0) {
+                container.innerHTML = "<div class='alert alert-warning'>Bu tarihte doldurulmuş bir anket bulunamadı.</div>";
+                return;
+            }
+
+            let gorselSira = 1;
+            for (const [gercekDbId, details] of Object.entries(data)) {
+                const dateObj = new Date(details.tarih + "Z");
+                const formattedDate = dateObj.toLocaleString("tr-TR");
+                let answersHtml = "";
+                details.cevaplar.forEach(item => {
+                    const isRating = ["1", "2", "3", "4", "5"].includes(item.cevap);
+                    const badgeClass = isRating ? 'badge bg-primary' : '';
+                    answersHtml += `
+                    <li class="list-group-item">
+                        <strong>${item.soru}</strong> <br>
+                        <span class="${badgeClass}">${item.cevap}</span>
+                    </li>`;
+                });
+
+                container.innerHTML += `
+                <div class="card mb-4 shadow-sm border-0">
+                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                        <span>Müşteri Anket Oturumu #${gorselSira}</span>
+                        <div>
+                            <span class="me-3 text-light">Tarih: ${formattedDate}</span>
+                            <button class="btn btn-sm btn-danger" onclick="deleteSession(${gercekDbId}, ${gorselSira})">Sil</button>
+                        </div>
+                    </div>
+                    <ul class="list-group list-group-flush">${answersHtml}</ul>
+                </div>`;
+                gorselSira++;
+            }
+        }
+
+        async function deleteSession(dbId, gorselSira) {
+            const isConfirmed = confirm(`Oturum #${gorselSira} kalıcı olarak silinecek. Emin misiniz?`);
+            if (isConfirmed) {
+                // Tekil silme işlemi güncellendi
+                await fetch(`admin_api.php?action=delete_session&session_id=${dbId}`, { method: "DELETE" });
+                const currentDate = document.getElementById("dateFilter").value;
+                loadResults(currentDate);
+            }
+        }
+
+        async function deleteAllSessions() {
+            const isConfirmed = confirm("DİKKAT: Tüm anket sonuçları kalıcı olarak silinecek! Emin misiniz?");
+            if (isConfirmed) {
+                // Tümünü silme işlemi güncellendi
+                await fetch(`admin_api.php?action=delete_all_sessions`, { method: "DELETE" });
+                loadResults("");
+            }
+        }
+    </script>
+</body>
+
+</html>

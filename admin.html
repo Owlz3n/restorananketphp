@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Admin - Soru ve Logo Yönetimi</title>
+    <link rel="icon" id="siteFavicon" href="3N.png">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body class="bg-light">
+    <div class="container mt-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Soru ve Logo Yönetim Paneli</h2>
+            <div>
+                <button class="btn btn-warning text-dark me-2" onclick="makeAllRequired()">⚡ Hepsini Zorunlu
+                    Yap</button>
+                <button class="btn btn-outline-secondary me-2" onclick="makeAllOptional()">Hepsini İsteğe Bağlı
+                    Yap</button>
+                <a href="anketlistele.html" class="btn btn-secondary">Sonuçları Gör -></a>
+            </div>
+        </div>
+
+        <!-- Logo Yönetimi Kartı -->
+        <div class="card mb-4 shadow-sm border-primary">
+            <div class="card-body">
+                <h5 class="card-title text-primary fw-bold">Site Logosu Yükle / Değiştir</h5>
+                <form id="uploadLogoForm" class="row g-3 align-items-center mt-1">
+                    <div class="col-auto">
+                        <img id="adminLogoPreview" src="3N.png" alt="Mevcut Logo"
+                            style="max-height: 60px; max-width: 150px; object-fit: contain;"
+                            class="border p-1 rounded bg-white">
+                    </div>
+                    <div class="col-md-6">
+                        <input class="form-control" type="file" id="logoFileInput" accept="image/*" required>
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-primary">Logoyu Güncelle</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mb-4 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Yeni Soru Ekle</h5>
+                <form id="addQuestionForm" class="row g-3">
+                    <div class="col-md-5">
+                        <input type="text" class="form-control" id="q_text"
+                            placeholder="Soru Metni (Örn: Lezzetimiz nasıldı?)" required>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="q_type">
+                            <option value="rating">Puanlama (1-5)</option>
+                            <option value="text">Açık Metin (Yorum)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select" id="q_required">
+                            <option value="1">Zorunlu</option>
+                            <option value="0">İsteğe Bağlı</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-success w-100">Ekle</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <table class="table table-bordered bg-white shadow-sm align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>Soru Metni</th>
+                    <th>Soru Tipi</th>
+                    <th>Zorunluluk</th>
+                    <th>Durum</th>
+                    <th>İşlem</th>
+                </tr>
+            </thead>
+            <tbody id="questionsTableBody"></tbody>
+        </table>
+    </div>
+    <script>
+        // API Yolları PHP dosyalarına yönlendirildi
+        const ADMIN_API = "admin_api.php";
+
+        window.onload = function () {
+            loadLogo();
+            loadQuestions();
+        };
+
+        async function loadLogo() {
+            try {
+                const res = await fetch(`${ADMIN_API}?action=get_logo`);
+                const data = await res.json();
+                if (data && data.logo_url) {
+                    document.getElementById("adminLogoPreview").src = data.logo_url;
+                    document.getElementById("siteFavicon").href = data.logo_url;
+                }
+            } catch (e) {
+                console.error("Logo yükleme hatası:", e);
+            }
+        }
+
+        document.getElementById("uploadLogoForm").addEventListener("submit", async function (e) {
+            e.preventDefault();
+            const fileInput = document.getElementById("logoFileInput");
+            if (!fileInput.files[0]) return;
+
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+
+            try {
+                const res = await fetch(`${ADMIN_API}?action=update_logo`, {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    alert("Logo başarıyla güncellendi!");
+                    loadLogo();
+                    fileInput.value = "";
+                } else {
+                    alert(data.detail || "Logo yüklenirken hata oluştu.");
+                }
+            } catch (err) {
+                console.error("Logo yükleme hatası:", err);
+                alert("Sunucuya bağlanılamadı.");
+            }
+        });
+
+        async function loadQuestions() {
+            const res = await fetch(`${ADMIN_API}?action=questions`);
+            const questions = await res.json();
+            const tbody = document.getElementById("questionsTableBody");
+            tbody.innerHTML = "";
+            questions.forEach(q => {
+                const statusBadge = q.is_active == 1 ? '<span class="badge bg-success">Aktif</span>' : '<span class="badge bg-danger">Pasif</span>';
+                const requiredBadge = q.is_required == 1 ? '<span class="badge bg-warning text-dark">Zorunlu</span>' : '<span class="badge bg-secondary">İsteğe Bağlı</span>';
+
+                const btnText = q.is_active == 1 ? 'Pasif Yap' : 'Aktif Yap';
+                const btnColor = q.is_active == 1 ? 'btn-outline-warning' : 'btn-outline-success';
+
+                const reqBtnText = q.is_required == 1 ? 'İsteğe Bağlı Yap' : 'Zorunlu Yap';
+                const reqBtnColor = q.is_required == 1 ? 'btn-outline-secondary' : 'btn-outline-primary';
+
+                const deleteBtn = `<button class="btn btn-sm btn-danger ms-1" onclick="deleteQuestion(${q.id})">Kalıcı Sil</button>`;
+                tbody.innerHTML += `
+                <tr>
+                    <td>${q.question_text}</td>
+                    <td>${q.question_type === 'rating' ? 'Puanlama' : 'Metin'}</td>
+                    <td>${requiredBadge}</td>
+                    <td>${statusBadge}</td>
+                    <td>
+                        <button class="btn btn-sm ${btnColor} me-1" onclick="toggleStatus(${q.id})">${btnText}</button>
+                        <button class="btn btn-sm ${reqBtnColor} me-1" onclick="toggleRequired(${q.id})">${reqBtnText}</button>
+                        ${deleteBtn}
+                    </td>
+                </tr>`;
+            });
+        }
+
+        document.getElementById("addQuestionForm").addEventListener("submit", async function (e) {
+            e.preventDefault();
+            const text = document.getElementById("q_text").value;
+            const type = document.getElementById("q_type").value;
+            const isReq = parseInt(document.getElementById("q_required").value);
+            await fetch(`${ADMIN_API}?action=add_question`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ question_text: text, question_type: type, is_required: isReq })
+            });
+            document.getElementById("addQuestionForm").reset();
+            loadQuestions();
+        });
+
+        async function toggleStatus(id) {
+            await fetch(`${ADMIN_API}?action=toggle&q_id=${id}`, { method: "PUT" });
+            loadQuestions();
+        }
+
+        async function toggleRequired(id) {
+            await fetch(`${ADMIN_API}?action=toggle-required&q_id=${id}`, { method: "PUT" });
+            loadQuestions();
+        }
+
+        async function makeAllRequired() {
+            if (confirm("Tüm soruları ZORUNLU yapmak istediğinize emin misiniz?")) {
+                await fetch(`${ADMIN_API}?action=make_all_required`, { method: "PUT" });
+                loadQuestions();
+            }
+        }
+
+        async function makeAllOptional() {
+            if (confirm("Tüm soruları İSTEĞE BAĞLI yapmak istediğinize emin misiniz?")) {
+                await fetch(`${ADMIN_API}?action=make_all_optional`, { method: "PUT" });
+                loadQuestions();
+            }
+        }
+
+        async function deleteQuestion(id) {
+            const isConfirmed = confirm("UYARI: Soru ve ona verilmiş tüm cevaplar silinecektir. Emin misiniz?");
+            if (isConfirmed) {
+                await fetch(`${ADMIN_API}?action=delete_question&q_id=${id}`, { method: "DELETE" });
+                loadQuestions();
+            }
+        }
+    </script>
+</body>
+
+</html>
